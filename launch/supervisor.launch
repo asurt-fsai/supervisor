@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<launch>
+	<!-- Nodes -->
+	<node name="supervisor"   pkg="supervisor"  type = "supervisor.py"  output="screen"/>
+</launch>
