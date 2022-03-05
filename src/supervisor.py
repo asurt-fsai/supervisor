@@ -1,18 +1,19 @@
 #!/usr/bin/python3
 
-from inspector import Inspector
+from inspector import Inspector, Module
 import rospy
 
 
 def main():
-    # initialize the node
+    # initialize node
     rospy.init_node('supervisor')
 
-    # manual inspiction
+    # initialize inspector
     inspector = Inspector([
-        ("mrmono_pcl", "lidar.launch")
+        Module("mrpython_pcl", "lidar.launch"),
     ])
 
+    # start inspection
     inspector.manual_inspect()
 
     # pool

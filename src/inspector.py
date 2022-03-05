@@ -1,51 +1,105 @@
+from dataclasses import dataclass
+from typing import List
 import roslaunch
 
 
-class Inspector():
+@dataclass
+class Module(object):
+    """
+        Holdes the required launch file args of a module for inspection.\n
+        You can pass a launch file for an accessory (i.e rviz, plotter, etc.)
+
+        Attributes
+        ----------
+        pkg : str
+            The name of the package.
+        launch : str
+            The name of the launch file.
+        accessory_pkg : str, optional
+            The name of the package.
+        accessory_launch : str, optional
+            The name of the launch file.
+    """
+
+    pkg: str
+    launch: str
+    accessory_pkg: str = None
+    accessory_launch: str = None
 
 
-    def __init__(self, launch_file_pairs):
-        self.launch_file_pairs: list = launch_file_pairs
+class Inspector(object):
+    """
+        Inspects a given list of modules (pipeline).
+
+        Attributes
+        ----------
+        modules : List[Module]
+            A pipline of modules.
+    """
+
+
+    def __init__(self, modules: List[Module]):
+        self.modules: List[Module] = modules
 
 
     def manual_inspect(self):
-        for launche_file_pair in self.launch_file_pairs:
+        """
+            Manually, inpect the module pipline. User input directs 
+            the actions taken for each module.
+        """
+
+        for module in self.modules:
             # until passed
             while True:
                 # launch the module, and get handles
-                module, accessory = self.__launch(launche_file_pair)
+                module_handle, accessory_handle = self.__launch(module)
+
+                # check the module state
+                if module is None:
+                    print("NO MODULE...")
+
                 
                 # take next action from the manual inspector
-                action = input("Next action? \nc -> confirmed \nk -> confirmed but keep inspection view \nr -> restart module)\n> ")
+                prompt = "Next action? \nc -> confirmed \nk -> confirmed but keep inspection view \nr -> restart module)\n>\n "
+                action = input(prompt)
 
                 # take action
                 if action.lower() == 'c':
-                    # close any accessory
-                    if accessory is not None:
-                        accessory.shutdown()
+                    # close accessory if present
+                    if accessory_handle is not None:
+                        accessory_handle.shutdown()
                     break
 
                 if action.lower() == 'k':
                     break
                 
+                # restart the module
                 if action.lower() == 'r':
-                    if module is not None:
-                        module.shutdown()
-                    if accessory is not None:
-                        accessory.shutdown()
+                    if module_handle is not None:
+                        module_handle.shutdown()
+                    if accessory_handle is not None:
+                        accessory_handle.shutdown()
                 
 
     
-    def __launch(self, launch_file_pair):
-        if len(launch_file_pair) < 1:
-            return
-        
+    def __launch(self, module: Module):
+        if module.pkg is None or module.launch is None:
+            return None, None
+
+
         uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
-        roslaunch.configure_logging(uuid)
 
-        cli_args = ['mrpython_pcl', 'lidar.launch']
-        roslaunch_file = roslaunch.rlutil.resolve_launch_arguments(cli_args)
+        def launch_file(pkg: str, file: str):
+            if (None in [pkg, file]):
+                return None
 
-        parent = roslaunch.parent.ROSLaunchParent(uuid, roslaunch_file)
+            cli_args = [pkg, file]
+            roslaunch_file = roslaunch.rlutil.resolve_launch_arguments(cli_args)
 
-        return parent, None
+            parent = roslaunch.parent.ROSLaunchParent(uuid, roslaunch_file)
+            parent.start()
+
+            return parent
+
+        return tuple(map(lambda x: launch_file(*x), [(module.pkg, module.launch),
+                                                     (module.accessory_pkg, module.accessory_launch)]))
