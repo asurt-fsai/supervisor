@@ -60,7 +60,7 @@ class Inspector(object):
 
                 
                 # take next action from the manual inspector
-                prompt = "Next action? \nc -> confirmed \nk -> confirmed but keep inspection view \nr -> restart module)\n>\n "
+                prompt = "Next action? \nc -> confirmed \nk -> confirmed but keep inspection view \nr -> restart module\n>\n "
                 action = input(prompt)
 
                 # take action
