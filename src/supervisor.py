@@ -10,11 +10,14 @@ def main():
 
     # initialize inspector
     inspector = Inspector([
-        Module("mrpython_pcl", "lidar.launch"),
+        Module("mrpython_pcl", "lidar.launch",) # "mrpython_pcl", "rviz.launch"),
     ])
 
     # start inspection
-    inspector.manual_inspect()
+    # inspector.manual_inspect()
+
+    # auto launch
+    inspector.auto_launch()
 
     # pool
     rospy.spin()

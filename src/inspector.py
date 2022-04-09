@@ -52,7 +52,7 @@ class Inspector(object):
             # until passed
             while True:
                 # launch the module, and get handles
-                module_handle, accessory_handle = self.__launch(module)
+                module_handle, accessory_handle = self.__launch(module, inspect=True)
 
                 # check the module state
                 if module is None:
@@ -79,13 +79,21 @@ class Inspector(object):
                         module_handle.shutdown()
                     if accessory_handle is not None:
                         accessory_handle.shutdown()
-                
 
+
+    def auto_launch(self):
+        """
+            Automatically, launch the module pipline.
+        """
+
+        for module in self.modules:
+            # launch the module, and get handles
+            module_handle = self.__launch(module)
+            
     
-    def __launch(self, module: Module):
+    def __launch(self, module: Module, inspect: bool = False):
         if module.pkg is None or module.launch is None:
             return None, None
-
 
         uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
 
@@ -101,5 +109,10 @@ class Inspector(object):
 
             return parent
 
-        return tuple(map(lambda x: launch_file(*x), [(module.pkg, module.launch),
-                                                     (module.accessory_pkg, module.accessory_launch)]))
+        launchables = [(module.pkg, module.launch)]
+        if not inspect:
+            return tuple(map(lambda x: launch_file(*x), launchables))
+        else:
+            launchables.append((module.accessory_pkg, module.accessory_launch))
+            return tuple(map(lambda x: launch_file(*x), launchables))
+
