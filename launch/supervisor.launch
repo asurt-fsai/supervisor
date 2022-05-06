@@ -1,5 +1,12 @@
 <?xml version="1.0"?>
 <launch>
+
 	<!-- Nodes -->
 	<node name="supervisor"   pkg="supervisor"  type = "supervisor.py"  output="screen"/>
+
+	<!-- Parameters -->
+	<param name="control_command_topic"	value="sp_state_control"/>
+	<param name="road_state_topic"		value="RoadState"/>
+	<param name="mission_topic"			value="Mission"/>
+
 </launch>
