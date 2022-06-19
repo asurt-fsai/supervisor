@@ -13,22 +13,23 @@ def main():
 
     # Initialize inspector.
     inspector = Inspector([
-        Module("mrpython_pcl", "lidar.launch",) # "mrpython_pcl", "rviz.launch"),
+        Module("mrpython_pcl", "test.launch",) # "mrpython_pcl", "rviz.launch"),
     ])
 
     # Initialize control commander.
     control_commander = ControlCommander()
 
     # Initialize mission observer.
-    mission_observer = MissionObserver()
-    mission_observer.on_mission_received(control_commander.run)
-    mission_observer.on_mission_finished(control_commander.soft_stop)
+    mission_observer = MissionObserver(
+        launch_system = inspector.auto_launch,
+        control_commmander = control_commander,
+    )
 
-    # Start inspection.
+    # Ex. Start a manual inspection.
     # inspector.manual_inspect()
 
-    # Auto launch.
-    inspector.auto_launch()
+    # Ex. Auto launch.
+    # inspector.auto_launch()
 
     # Pool.
     rospy.spin()
