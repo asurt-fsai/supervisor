@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Convention x is forward, z is upwards, y is left -->
+	<node pkg="tf2_ros" type="static_transform_publisher" name="kit_to_flir" args="0.1 0 0.3 0 0 0 kit flir"/>
+	<node pkg="tf2_ros" type="static_transform_publisher" name="kit_to_velodyne" args="0.1 0 0 0 0 0 kit velodyne"/>
+	<node pkg="tf2_ros" type="static_transform_publisher" name="kit_to_imu" args="0 0 0 0 0 0 kit imu"/>
+	<node pkg="tf2_ros" type="static_transform_publisher" name="base_link_to_kit" args="1.5 0 0 0 0 0 base_link kit"/> <!-- Currently has golf config -->
+	<node pkg="tf2_ros" type="static_transform_publisher" name="base_link_to_zed" args="0 0 0 0 0 0 base_link zed"/> <!-- TO ADD -->
+	<node pkg="tf2_ros" type="static_transform_publisher" name="base_link_to_rear_link" args="-1.0 0 0 0 0 0 base_link rear_link"/> <!-- TO ADD -->
+</launch>

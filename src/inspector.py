@@ -2,12 +2,13 @@ from dataclasses import dataclass
 from typing import List
 
 import roslaunch
+import time
+import rospy
+from asurt_msgs.msg import Status
 
-
-@dataclass
-class Module(object):
+class Module:
     """
-        Holdes the required launch file args of a module for inspection.\n
+        Holds the required launch file args of a module for inspection.\n
         You can pass a launch file for an accessory (i.e rviz, plotter, etc.)
 
         Attributes
@@ -16,16 +17,67 @@ class Module(object):
             The name of the package.
         launch : str
             The name of the launch file.
-        accessory_pkg : str, optional
-            The name of the package.
-        accessory_launch : str, optional
-            The name of the launch file.
+        topics : List[str], optional
+            The name of the topics that node publishes.
     """
+    def __init__(self, pkg, launch_file, heartbeat=None):
+        self.pkg = pkg
+        self.launch_file = launch_file
+        if heartbeat is not None:
+            rospy.Subscriber(heartbeat, Status, self.heartbeat_cb)
 
-    pkg: str
-    launch: str
-    accessory_pkg: str = None
-    accessory_launch: str = None
+        self.module_handle = None
+        self.state = 4  # Shutdown
+        self.count_since_last = 0
+        self.rate = 0
+        self.schedule_restart = 0
+    
+    def restart(self):
+        self.shutdown()
+        self.launch()
+    
+    def shutdown(self):
+        if self.module_handle is not None:
+            self.module_handle.shutdown()
+            self.module_handle = None
+        self.state = 4
+
+    def launch(self):
+        if self.pkg is None or self.launch_file is None:
+            return None, None
+        self.state = 0
+        uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
+
+        def launch_file(pkg: str, file: str):
+            if (None in [pkg, file]):
+                return None
+
+            cli_args = [pkg, file]
+            roslaunch_file = roslaunch.rlutil.resolve_launch_arguments(cli_args)
+
+            parent = roslaunch.parent.ROSLaunchParent(uuid, roslaunch_file)
+            parent.start()
+
+            return parent
+            
+        self.module_handle = launch_file(self.pkg, self.launch_file)
+    
+    def heartbeat_cb(self, msg):
+        self.state = msg.status
+        self.count_since_last += 1
+    
+    def update(self):
+        if self.schedule_restart == 1:
+            self.restart()
+            self.schedule_restart = 0
+        if self.count_since_last==0 and self.state == 2:
+            self.state = 5  # unresponsive
+        if self.rate == 0:
+            self.rate = self.count_since_last
+        else:
+            beta = 0.3
+            self.rate = beta*self.rate + (1-beta)*self.count_since_last
+        self.count_since_last = 0
 
 
 class Inspector(object):
@@ -42,7 +94,6 @@ class Inspector(object):
     def __init__(self, modules: List[Module]):
         self.modules: List[Module] = modules
 
-
     def manual_inspect(self):
         """
             Manually, inpect the module pipline. User input directs 
@@ -53,7 +104,7 @@ class Inspector(object):
             # until passed
             while True:
                 # launch the module, and get handles
-                module_handle, accessory_handle = self.__launch(module, inspect=True)
+                module.launch()
 
                 # check the module state
                 if module is None:
@@ -61,59 +112,33 @@ class Inspector(object):
 
                 
                 # take next action from the manual inspector
-                prompt = "Next action? \nc -> confirmed \nk -> confirmed but keep inspection view \nr -> restart module\n>\n "
+                prompt = "Next action?\nk -> confirmed but keep inspection view \nr -> restart module\n>\n "
                 action = input(prompt)
-
-                # take action
-                if action.lower() == 'c':
-                    # close accessory if present
-                    if accessory_handle is not None:
-                        accessory_handle.shutdown()
-                    break
 
                 if action.lower() == 'k':
                     break
                 
                 # restart the module
                 if action.lower() == 'r':
-                    if module_handle is not None:
-                        module_handle.shutdown()
-                    if accessory_handle is not None:
-                        accessory_handle.shutdown()
-
+                    module.shutdown()
 
     def auto_launch(self):
         """
             Automatically, launch the module pipline.
         """
-
         for module in self.modules:
-            # launch the module, and get handles
-            module_handle = self.__launch(module)
-            
-    
-    def __launch(self, module: Module, inspect: bool = False):
-        if module.pkg is None or module.launch is None:
-            return None, None
+            module.launch()
 
-        uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
+    def update(self):
+        for module in self.modules:
+            module.update()
 
-        def launch_file(pkg: str, file: str):
-            if (None in [pkg, file]):
-                return None
-
-            cli_args = [pkg, file]
-            roslaunch_file = roslaunch.rlutil.resolve_launch_arguments(cli_args)
-
-            parent = roslaunch.parent.ROSLaunchParent(uuid, roslaunch_file)
-            parent.start()
-
-            return parent
-
-        launchables = [(module.pkg, module.launch)]
-        if not inspect:
-            return tuple(map(lambda x: launch_file(*x), launchables))
-        else:
-            launchables.append((module.accessory_pkg, module.accessory_launch))
-            return tuple(map(lambda x: launch_file(*x), launchables))
+    def get_data(self):
+        data = []
+        states = ['starting', 'ready','running','error','shutdown','unresponsive']
+        r = 1
+        for module in self.modules:
+            data.append([module.pkg, states[module.state],'{:.2f} hz'.format(module.rate), module.state])
+            r += 1
+        return data
 

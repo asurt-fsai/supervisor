@@ -2,6 +2,7 @@
 <launch>
 
 	<!-- Nodes -->
+	<include file="$(find supervisor)/launch/tf_transforms.launch" />
 	<node name="supervisor"   pkg="supervisor"  type = "supervisor.py"  output="screen"/>
 
 	<!-- Parameters -->
