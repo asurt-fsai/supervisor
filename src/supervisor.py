@@ -125,15 +125,11 @@ def main():
     control_commander = ControlCommander()
 
     # Initialize mission observer.
-    #mission_observer = MissionObserver()
-    #mission_observer.on_mission_received(control_commander.run)
-    #mission_observer.on_mission_finished(control_commander.soft_stop)
+    mission_observer = MissionObserver(
+        launch_system = inspector.auto_launch,
+        control_commmander = control_commander,
+    )
 
-    # Start inspection.
-    #inspector.manual_inspect()
-
-    # Auto launch.
-    inspector.auto_launch()
     int_markers = IntMarkers()
     for idx, module in enumerate(inspector.modules):
         int_markers.add_button(7.5, -0.7*idx, module)
