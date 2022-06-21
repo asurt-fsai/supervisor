@@ -105,19 +105,20 @@ def main():
     viz = Visualizer('/marker/supervisor')
 
     inspector = Inspector([
-        #Module("aloam_velodyne", "aloam_velodyne_VLP_16.launch"),
-        #Module("velodyne_pointcloud", "VLP-32C_points.launch"),
-        #Module("spinnaker_sdk_camera_driver", "acquisition.launch"),
-        #Module("darknet_ros", "fsoco_darknet.launch"),
-        Module("darknet_ros", "fsoco_old.launch"),
-        #Module("bounding_box_filter", "bounding_box_filter.launch"),
-        Module("marker_viz", "marker_viz.launch",'status/marker_viz'),
-        Module("mrpython_pcl", "lidar.launch",'/status/lidar'),
-        Module("smoreo", "smoreo_sys_flir.launch",'/status/smoreo'),
-        Module("smornn", "smornn.launch",'status/smornn'),
+        #Module("aloam_velodyne", "aloam_velodyne_HDL_32.launch"),
+        Module("velodyne_pointcloud", "VLP-32C_points.launch"),
+        #Module("spinnaker_sdk_camera_driver", "main_cam.launch","/status/spinnaker"),
+        #Module("darknet_ros", "fsoco_darknet.launch","/status/darknet_ros"),
+        #Module("calibrationBroadcaster", "camera.launch"),
+        #Module("darknet_ros", "fsoco_old.launch","/status/darknet_ros"),
+        #Module("bounding_box_filter", "bounding_box_filter.launch","/status/bounding_box_filter"),
+        #Module("marker_viz", "marker_viz.launch",'status/marker_viz'),
+        #Module("mrpython_pcl", "lidar.launch",'/status/lidar'),
+        #Module("smoreo", "smoreo_sys_flir.launch",'/status/smoreo'),
+        #Module("smornn", "smornn.launch",'status/smornn'),
         #Module("graph_slam", "graph_slam.launch"),
-        #Module("fs_planning-2022", "path_planner_python.launch")
-        # Add control
+        #Module("fs_planning-2022", "path_planner_python.launch","/status/planning"),
+        #Module("navigation", "main.launch")
     ])
 
     # Initialize control commander.
@@ -138,15 +139,18 @@ def main():
         int_markers.add_button(7.5, -0.7*idx, module)
     
     def update_data():
-        while True:
-            data = inspector.get_data()
-            to_viz = []
-            for idx, row in enumerate(data):
-                to_viz.append([0,-0.7*idx,row[0],row[3]])
-                to_viz.append([2.5,-0.7*idx,row[1],row[3]])
-                to_viz.append([5,-0.7*idx,row[2],row[3]])
-            viz.visualize_text(to_viz)
-            time.sleep(1)
+        try:
+            while True:
+                data = inspector.get_data()
+                to_viz = []
+                for idx, row in enumerate(data):
+                    to_viz.append([0,-0.7*idx,row[0],row[3]])
+                    to_viz.append([2.5,-0.7*idx,row[1],row[3]])
+                    to_viz.append([5,-0.7*idx,row[2],row[3]])
+                viz.visualize_text(to_viz)
+                time.sleep(1)
+        except rospy.ROSInterruptException:
+            pass
 
     threading.Thread(target=update_data).start()
     r = rospy.Rate(1)
