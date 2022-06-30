@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 import rospy
-from std_msgs.msg import UInt16, String
+from std_msgs.msg import Bool
 
 from asurt_msgs.msg import CanState
 from asurt_msgs.msg import RoadState
@@ -36,34 +36,49 @@ class MissionObserver():
         }
 
         self.__subscriber_mission = rospy.Subscriber(rospy.get_param('/ros_can/state', 'CanState'), CanState, self.__can_state_handler, queue_size=1)
+        self.__publisher_mission_status = rospy.Publisher(rospy.get_param('mission_status_topic', '/ros_can/mission_flag'), Bool, queue_size=1)
+        self.__publisher_driving_flag = rospy.Publisher(rospy.get_param('driving_flag_topic', '/state_machine/driving_flag'), Bool, queue_size=1)
         return
 
 
     def __can_state_handler(self, can_state: CanState):
-        # Act for AS_DRIVING transition (Run the system).
-        if self.__as_state != can_state.AS_DRIVING and can_state.as_state == can_state.AS_DRIVING:
-            self.__launch_system()
-            self.__control_commander.run()
-        self.__as_state = can_state.as_state
-
         # Act on the mission.
         self.__mission = can_state.ami_state
-
+        rospy.set_param('navigation_mission', self.__mission) # Notify navigation via param server.
         if self.__mission_received_callback is not None:
             self.__mission_received_callback(self.__mission)
 
-        self.__is_finished_checker = self.__mission_to_checker[self.__mission]
-        self.__subscriber_road_state = rospy.Subscriber(rospy.get_param('road_state_topic', 'RoadState'), RoadState, self.__is_finished, queue_size=1)
+        # Act for AS_READY transition (driving flag).
+        if self.__as_state != can_state.AS_READY and can_state.as_state == can_state.AS_READY:
+            self.__publisher_driving_flag.publish(Bool(True))
 
+        # Act for AS_DRIVING transition (run the system).
+        previous_state = self.__as_state
+        self.__as_state = can_state.as_state
+        if previous_state != can_state.AS_DRIVING and can_state.as_state == can_state.AS_DRIVING:
+            if self.__mission == CanState.AMI_DDT_INSPECTION_A:
+                self.__start_inspection_a()
+            elif self.__mission == CanState.AMI_DDT_INSPECTION_B:
+                self.__start_inspection_b()
+            else:
+                self.__launch_system()
+                self.__is_finished_checker = self.__mission_to_checker[self.__mission]
+                self.__subscriber_road_state = rospy.Subscriber(rospy.get_param('road_state_topic', 'RoadState'), RoadState, self.__is_finished, queue_size=1)
+        
 
     def __is_finished(self, road_state: RoadState) -> bool:
         is_finished: bool = self.__is_finished_checker(road_state)
 
-        # Stop the vehicle.
-        self.__control_commander.soft_stop()
-
-        if is_finished and self.__mission_finished_callback is not None:
-            self.__mission_finished_callback()
+        if is_finished:
+            # Stop the vehicle.
+            self.__control_commander.soft_stop()
+            # Wait until deccelerated.
+            while self.__control_commander.current_speed > 9:
+                rospy.sleep(0.1)
+            # Signal mission status.
+            self.__publisher_mission_status.publish(Bool(True))
+            if self.__mission_finished_callback is not None:
+                self.__mission_finished_callback()
         
         return is_finished
     
@@ -94,6 +109,70 @@ class MissionObserver():
             return True
         
         return False
+
+    
+    def __start_inspection_a(self):
+        ###############################
+        # Sweep full streeing range.
+        ###############################
+
+        # Steer left.
+        self.__control_commander.set_steering_angle(-27.2)
+        # Until steered
+        while self.__control_commander.current_steering_angle > -24:
+            rospy.sleep(0.1)
+        # Buffer.
+        rospy.sleep(1)
+
+        # Steer right.
+        self.__control_commander.set_steering_angle(27.2)
+        # Until steered
+        while self.__control_commander.current_steering_angle < 24:
+            rospy.sleep(0.1)
+        # Buffer.
+        rospy.sleep(1)
+
+        # Steer to straight ahead position.
+        self.__control_commander.set_steering_angle(0)
+        while not (-0.5 < self.__control_commander.current_steering_angle < 0.5):
+            rospy.sleep(0.1)
+        # Buffer.
+        rospy.sleep(1)
+
+        ###############################
+        # Acceleration.
+        ###############################
+
+        # Ramp up.
+        for i in range(1, 11):
+            rospy.sleep(1)
+            self.__control_commander.set_speed(max(i * 25, 200))
+        
+        # Stop.
+        for i in range(1, 6):
+            rospy.sleep(1)
+            self.__control_commander.set_speed(min(200 - i * 50, 0))
+
+        # Signal mission finish status.
+        self.__publisher_mission_status.publish(Bool(True))
+        if self.__mission_finished_callback is not None:
+            self.__mission_finished_callback()
+        
+
+    def __start_inspection_b(self):
+        # Spin up the speed to 50 rpm.
+        self.__control_commander.set_speed(51)
+        # Until reached.
+        while self.__control_commander.current_speed < 50:
+            rospy.sleep(0.1)
+        # Buffer.
+        rospy.sleep(1)
+
+        # Trigger EBS system.
+        # Signal mission finish status.
+        self.__publisher_mission_status.publish(Bool(True))
+        if self.__mission_finished_callback is not None:
+            self.__mission_finished_callback()
 
 
     def on_mission_received(self, callback: Callable[[int], bool]) -> None:

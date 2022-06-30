@@ -20,6 +20,7 @@ class Module:
         topics : List[str], optional
             The name of the topics that node publishes.
     """
+    
     def __init__(self, pkg, launch_file, heartbeat=None):
         self.pkg = pkg
         self.launch_file = launch_file
